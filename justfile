@@ -35,3 +35,6 @@ shell port=device:
 
 clean:
   rm --force ./app/build/firmware.elf ./app/build/firmware.hex
+
+simulate:
+  python3 ./scripts/sim.py

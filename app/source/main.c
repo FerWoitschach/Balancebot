@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 #include <math.h>
 
 #define MPU6050_ADDR 0x68
@@ -158,18 +159,111 @@ void setup(void) {
 	uart_print("[SETUP] OK\r\n");
 }
 
+// int main(void) {
+// 	setup();
+
+// 	char buffer[64];
+
+// 	int16_t ax, ay, az, gx, gy, gz;
+// 	uint8_t divider = 0;
+
+// 	while (1) {
+// 		mpu_read_all(&ax, &ay, &az, &gx, &gy, &gz);
+
+// 		int16_t ay_centered = ay - ay_offset;
+
+// 		if (abs(ay_centered) < 100) {
+// 			ay_centered = 0;
+// 		}
+
+// 		old_p = p;
+// 		p = (float)ay_centered + bp;
+		
+// 		if (ay_centered == 0) {
+// 			i_val *= 0.8f;
+// 		} else {
+// 			i_val = i_val + (p * 0.01f);
+// 		}
+
+// 		if (i_val > 100.0f)  i_val =  100.0f;
+// 		if (i_val < -100.0f) i_val = -100.0f;
+		
+// 		d_val = p - old_p;
+// 		pwm = (p * 0.08f) + i_val + (d_val * 0.4f) + ((float)gy * 0.002f);
+
+// 		uint8_t dir = 0;
+
+// 		if (pwm < 0) {
+// 			dir = 1;
+
+// 			PORTB &= ~PIN_R1; PORTB |= PIN_R2;
+// 			PORTB &= ~PIN_L1; PORTB |= PIN_L2;
+// 		} else {
+// 			dir = 0;
+
+// 			PORTB |= PIN_R1; PORTB &= ~PIN_R2;
+// 			PORTB |= PIN_L1; PORTB &= ~PIN_L2;
+// 		}
+
+// 		float abs_pwm = fabsf(pwm);
+
+// 		if (abs_pwm > 255.0f) abs_pwm = 255.0f;
+
+// 		uint8_t pwm_val = (uint8_t)abs_pwm;
+
+// 		if (abs(ay_centered) > 12000) {
+// 			pwm_val = 0;
+// 			PORTB &= ~(PIN_R1 | PIN_R2 | PIN_L1 | PIN_L2);
+// 		}
+
+// 		OCR0A = pwm_val;
+// 		OCR0B = pwm_val;
+
+// 		divider++; if (divider >= 20) {
+// 			divider = 0;
+// 			int len = snprintf(buffer, sizeof(buffer), "AY:%d | PID:%d | Dir:%d | PWM:%d\r\n", ay_centered, (int)pwm, dir, pwm_val);
+// 			for (int i = 0; i < len; i++) {
+// 				uart_transmit(buffer[i]);
+// 			}
+// 		}
+
+// 		_delay_ms(300);
+// 	}
+// 	return 0;
+// }
+
 int main(void) {
 	setup();
 
 	char buffer[64];
-
-	int16_t ax, ay, az, gx, gy, gz;
+	char rx_buffer[32];
+	uint8_t rx_index = 0;
 	uint8_t divider = 0;
+	
+	// Variables simuladas (reemplazan al MPU6050)
+	int16_t sim_ay = 0;
+	int16_t sim_gy = 0;
 
 	while (1) {
-		mpu_read_all(&ax, &ay, &az, &gx, &gy, &gz);
+		// 1. LEER DATOS DE PYTHON POR UART (Simula el MPU6050)
+		while (UCSR0A & (1 << RXC0)) {
+			char c = UDR0;
+			if (c == '\n') {
+				rx_buffer[rx_index] = '\0';
+				if (strncmp(rx_buffer, "AY:", 3) == 0) {
+					sim_ay = atoi(&rx_buffer[3]);
+				} else if (strncmp(rx_buffer, "GY:", 3) == 0) {
+					sim_gy = atoi(&rx_buffer[3]);
+				}
+				rx_index = 0;
+			} else if (rx_index < sizeof(rx_buffer) - 1) {
+				rx_buffer[rx_index++] = c;
+			}
+		}
 
-		int16_t ay_centered = ay - ay_offset;
+		// 2. USAR LOS DATOS SIMULADOS (Bypass del MPU6050)
+		int16_t ay_centered = sim_ay;
+		int16_t gy = sim_gy;
 
 		if (abs(ay_centered) < 100) {
 			ay_centered = 0;
@@ -194,20 +288,16 @@ int main(void) {
 
 		if (pwm < 0) {
 			dir = 1;
-
 			PORTB &= ~PIN_R1; PORTB |= PIN_R2;
 			PORTB &= ~PIN_L1; PORTB |= PIN_L2;
 		} else {
 			dir = 0;
-
 			PORTB |= PIN_R1; PORTB &= ~PIN_R2;
 			PORTB |= PIN_L1; PORTB &= ~PIN_L2;
 		}
 
 		float abs_pwm = fabsf(pwm);
-
 		if (abs_pwm > 255.0f) abs_pwm = 255.0f;
-
 		uint8_t pwm_val = (uint8_t)abs_pwm;
 
 		if (abs(ay_centered) > 12000) {
@@ -218,7 +308,7 @@ int main(void) {
 		OCR0A = pwm_val;
 		OCR0B = pwm_val;
 
-		divider++; if (divider >= 20) {
+		divider++; if (divider >= 5) { // Enviar telemetría cada 50ms
 			divider = 0;
 			int len = snprintf(buffer, sizeof(buffer), "AY:%d | PID:%d | Dir:%d | PWM:%d\r\n", ay_centered, (int)pwm, dir, pwm_val);
 			for (int i = 0; i < len; i++) {
@@ -226,7 +316,7 @@ int main(void) {
 			}
 		}
 
-		_delay_ms(300);
+		_delay_ms(10); // ¡CRÍTICO! Bucle a 100Hz para que el robot no se caiga
 	}
 	return 0;
 }
