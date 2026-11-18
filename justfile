@@ -21,8 +21,8 @@ build:
   sudo docker build --tag {{image}} --file {{containerfile}} .
 
 compile:
-  sudo docker run --rm --volume $(pwd):/workspace {{image}} avr-gcc -std=c11 -Os -DF_CPU=16000000UL -mmcu={{mcu}} app/source/main.c -o firmware.elf
-  sudo docker run --rm --volume $(pwd):/workspace {{image}} avr-objcopy -O ihex -R .eeprom firmware.elf firmware.hex
+  sudo docker run --rm --volume $(pwd):/workspace {{image}} avr-gcc -std=c11 -Os -DF_CPU=16000000UL -mmcu={{mcu}} app/source/main.c -o ./app/build/firmware.elf
+  sudo docker run --rm --volume $(pwd):/workspace {{image}} avr-objcopy -O ihex -R .eeprom ./app/build/firmware.elf ./app/build/firmware.hex
 
 flash port=device: compile
   sudo docker run --rm --device={{port}}:{{port}} -v $(pwd):/workspace {{image}} avrdude -F -v -p {{mcu}} -c arduino -P {{port}} -b 115200 -U flash:w:firmware.hex:i
